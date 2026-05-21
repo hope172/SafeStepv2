@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SafeStep | 실시간 재난 대피소 가이드</title>
+    <meta name="description" content="SafeStep - 이문동/경희대 일대 실시간 재난 대피 경로 안내 시스템. 개인 맞춤형 AI 기반 대피소 추천.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <!-- Real-Time Toast Alert (floating, always on top) -->
+    <div id="realtime-toast" class="realtime-toast" aria-live="assertive" role="alert">
+        <div class="toast-inner">
+            <span class="toast-icon">⚠️</span>
+            <div class="toast-body">
+                <span class="toast-title" id="toast-title">경보: 경로 변경 필요</span>
+                <span class="toast-msg" id="toast-msg">대피 경로에 침수가 감지되었습니다!</span>
+            </div>
+            <button class="toast-close" id="toast-close" aria-label="닫기">✕</button>
+        </div>
+        <div class="toast-progress-bar" id="toast-progress-bar"></div>
+    </div>
+
+    <div class="app-container" data-disaster="flood">
+        <!-- TOP STATUS HEADER -->
+        <header class="app-header">
+            <div class="header-logo">
+                <span class="logo-pulse"></span>
+                <h1>SafeStep</h1>
+                <span class="header-version-badge">v3 LIVE</span>
+            </div>
+            <div class="header-meta">
+                <span id="live-time">12:45:00 PM</span>
+                <button id="btn-reset-header" class="btn-reset-icon" aria-label="처음으로 되돌아가기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <!-- 1. EMERGENCY ALERT SCREEN (Step 0) -->
+            <section id="screen-alert" class="screen active">
+                <div class="alert-badge">
+                    <span class="alert-icon-wrap">
+                        <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                    </span>
+                    <span class="badge-text" id="alert-badge-text">긴급 대피 경보</span>
+                </div>
+
+                <!-- Disaster selector tabs -->
+                <div class="disaster-selector-wrap">
+                    <div class="disaster-selector-label">재난 상황 유형 선택</div>
+                    <div class="disaster-tab-grid">
+                        <button class="disaster-tab active" data-disaster="flood" id="tab-flood">
+                            <span class="disaster-tab-icon">🌧️</span>
+                            <span class="disaster-tab-name">호우・침수</span>
+                        </button>
+                        <button class="disaster-tab" data-disaster="earthquake" id="tab-earthquake">
+                            <span class="disaster-tab-icon">🌋</span>
+                            <span class="disaster-tab-name">지진 발생</span>
+                        </button>
+                        <button class="disaster-tab" data-disaster="wildfire" id="tab-wildfire">
+                            <span class="disaster-tab-icon">🔥</span>
+                            <span class="disaster-tab-name">산불 확산</span>
+                        </button>
+                        <button class="disaster-tab" data-disaster="snow" id="tab-snow">
+                            <span class="disaster-tab-icon">❄️</span>
+                            <span class="disaster-tab-name">대설・결빙</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="alert-title-wrap">
+                    <h2 class="alert-title" id="alert-main-title">집중호우 및 침수 경보</h2>
+                    <p class="alert-subtitle" id="alert-main-desc">현재 거주 지역 인근에 산사태 및 급격한 도로 침수가 우려됩니다. 안전한 인근 대피소로 신속히 이동해 주십시오.</p>
+                </div>
+
+                <!-- ★ NEW: Start Location Picker ★ -->
+                <div class="location-picker-wrap">
+                    <div class="location-picker-label">
+                        <span class="location-label-dot"></span>
+                        현재 출발 위치 선택
+                    </div>
+                    <div class="location-grid" id="location-grid">
+                        <button class="location-card active" data-location="hufs_gate" id="loc-hufs_gate">
+                            <span class="location-card-icon">🏫</span>
+                            <span class="location-card-name">한국외대 정문</span>
+                            <span class="location-card-sub">이문동 중심</span>
+                        </button>
+                        <button class="location-card" data-location="kyunghee_gate" id="loc-kyunghee_gate">
+                            <span class="location-card-icon">🏫</span>
+                            <span class="location-card-name">경희대 정문</span>
+                            <span class="location-card-sub">회기동 서편</span>
+                        </button>
+                        <button class="location-card" data-location="hufs_station" id="loc-hufs_station">
+                            <span class="location-card-icon">🚉</span>
+                            <span class="location-card-name">외대앞역 1번</span>
+                            <span class="location-card-sub">1호선/경의중앙</span>
+                        </button>
+                        <button class="location-card" data-location="imun_apt" id="loc-imun_apt">
+                            <span class="location-card-icon">🏢</span>
+                            <span class="location-card-name">이문현대아파트</span>
+                            <span class="location-card-sub">이문3동 북동</span>
+                        </button>
+                        <button class="location-card" data-location="cheonjang_park" id="loc-cheonjang_park">
+                            <span class="location-card-icon">🌲</span>
+                            <span class="location-card-name">천장산 입구</span>
+                            <span class="location-card-sub">천장산로 서측</span>
+                        </button>
+                        <button class="location-card" data-location="imun_market" id="loc-imun_market">
+                            <span class="location-card-icon">🛒</span>
+                            <span class="location-card-name">이문시장 앞</span>
+                            <span class="location-card-sub">이문로 상업가</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Simulation Info Banner -->
+                <div class="sim-banner">
+                    <div class="sim-banner-title">실시간 재난 시뮬레이션 상태 (이문동 · 회기동 일대)</div>
+                    <div class="sim-grid" id="sim-status-grid">
+                        <div class="sim-item">
+                            <span class="sim-label">현재 날씨</span>
+                            <span class="sim-value text-red">폭우 (120mm/h)</span>
+                        </div>
+                        <div class="sim-item">
+                            <span class="sim-label">침수 구역</span>
+                            <span class="sim-value text-orange">이문 지하차도, 중랑천</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved Profile Banner (shown if localStorage has profile) -->
+                <div id="saved-profile-banner" class="saved-profile-banner" style="display:none;">
+                    <span class="saved-profile-icon">💾</span>
+                    <div class="saved-profile-text">
+                        <strong>저장된 프로필 발견</strong>
+                        <span id="saved-profile-desc">이전 설정을 불러올까요?</span>
+                    </div>
+                    <button id="btn-load-profile" class="btn-load-profile">불러오기</button>
+                    <button id="btn-dismiss-profile" class="btn-dismiss-profile">✕</button>
+                </div>
+
+                <!-- Pulse Evacuation Trigger Button -->
+                <button id="btn-start" class="btn-primary-pulse">
+                    <span class="btn-text">내 대피소 찾기</span>
+                    <span class="btn-subtext">Find my shelter (AI 매칭 분석)</span>
+                    <span class="pulse-ring"></span>
+                </button>
+
+                <div class="emergency-guide-preview">
+                    <div class="guide-item">
+                        <span class="guide-num">1</span>
+                        <span id="emergency-tip-1">엘리베이터가 아닌 계단 이용</span>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-num">2</span>
+                        <span id="emergency-tip-2">가스 차단 및 전기 차단기 내리기</span>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-num">3</span>
+                        <span id="emergency-tip-3">스마트폰 손전등 및 긴급 연락 유지</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. CHATBOT SELECTION STREAM SCREEN (Step 1-3) -->
+            <section id="screen-chat" class="screen">
+                <div class="progress-bar-container">
+                    <div class="progress-steps">
+                        <span class="step-indicator active" id="indicator-age">1</span>
+                        <span class="step-line"></span>
+                        <span class="step-indicator" id="indicator-companion">2</span>
+                        <span class="step-line"></span>
+                        <span class="step-indicator" id="indicator-transport">3</span>
+                    </div>
+                </div>
+
+                <!-- Chat Feed Scroll Area -->
+                <div class="chat-feed" id="chat-feed">
+                    <!-- Chat bubbles will be appended dynamically by app.js -->
+                </div>
+
+                <!-- Click-based Action Panel at the bottom -->
+                <div class="action-panel" id="action-panel">
+                    <!-- Option buttons will render here dynamically -->
+                </div>
+            </section>
+
+            <!-- 3. DETAILED RECOMMENDATIONS & ROUTE SCREEN (Step 4) -->
+            <section id="screen-results" class="screen">
+                <!-- ★ NEW: Real-Time Control Center Panel ★ -->
+                <div class="control-center" id="control-center">
+                    <div class="control-center-header">
+                        <div class="control-live-badge">
+                            <span class="control-live-dot"></span>
+                            실시간 재난 시뮬레이터
+                        </div>
+                        <button class="control-center-toggle" id="control-center-toggle" aria-label="제어판 접기">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="control-center-body" id="control-center-body">
+                        <div class="control-auto-row">
+                            <label class="control-auto-label" for="toggle-auto-sim">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                자동 시뮬레이션 (6초 갱신)
+                            </label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-auto-sim">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="control-triggers">
+                            <button class="ctrl-btn" id="ctrl-flood-road" data-action="flood_road">
+                                <span class="ctrl-btn-icon">🌊</span>이문로 침수
+                            </button>
+                            <button class="ctrl-btn" id="ctrl-station-collapse" data-action="station_collapse">
+                                <span class="ctrl-btn-icon">🏚️</span>외대앞역 붕괴
+                            </button>
+                            <button class="ctrl-btn" id="ctrl-obama-full" data-action="obama_full">
+                                <span class="ctrl-btn-icon">🚫</span>오바마홀 정원초과
+                            </button>
+                            <button class="ctrl-btn" id="ctrl-kyunghee-full" data-action="kyunghee_full">
+                                <span class="ctrl-btn-icon">🚫</span>경희대홀 정원초과
+                            </button>
+                            <button class="ctrl-btn ctrl-btn-reset" id="ctrl-reset" data-action="reset">
+                                <span class="ctrl-btn-icon">↩️</span>상태 초기화
+                            </button>
+                        </div>
+                        <div class="control-live-status" id="control-live-status">
+                            <span class="status-dot status-idle"></span>
+                            <span id="status-text">대기 중 — 실시간 이벤트 없음</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-header">
+                    <div class="results-title-group">
+                        <div class="results-tag">분석 완료</div>
+                        <h2 class="results-heading">추천 대피소 TOP 3</h2>
+                    </div>
+                    <button id="btn-reset-results" class="btn-text-action">
+                        재입력
+                    </button>
+                </div>
+
+                <!-- Summary of User Selection -->
+                <div class="user-summary-bar">
+                    <div class="summary-tag" id="summary-condition">대상: -</div>
+                    <div class="summary-tag" id="summary-companion">동행자: -</div>
+                    <div class="summary-tag" id="summary-transport">이동수단: -</div>
+                    <div class="summary-tag summary-tag-location" id="summary-location">📍 외대정문</div>
+                </div>
+
+                <!-- Shelter Recommendations Cards Container -->
+                <div class="recommendations-container" id="shelter-list">
+                    <!-- Card template generated dynamically in app.js -->
+                </div>
+
+                <!-- Map and Routing Division -->
+                <div class="map-section">
+                    <div class="section-title">
+                        <span class="section-title-dot"></span>
+                        <span>실시간 최단 안전 대피 경로</span>
+                        <span class="live-map-tag">LIVE</span>
+                    </div>
+
+                    <!-- Map graphic card -->
+                    <div class="map-card">
+                        <!-- SVG MAP CONTAINER -->
+                        <div class="svg-map-wrapper" id="svg-map-wrapper">
+                            <!-- SVG map markup injected here -->
+                        </div>
+                        <div class="map-overlay-legend">
+                            <div class="legend-item"><span class="legend-dot legend-user"></span><span>내 위치</span></div>
+                            <div class="legend-item"><span class="legend-dot legend-shelter"></span><span>대피소(크기:혼잡률)</span></div>
+                            <div class="legend-item"><span class="legend-dot legend-hazard"></span><span>재난위험구역</span></div>
+                            <div class="legend-item"><span class="legend-line legend-route"></span><span>우회경로</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Safe Route Directions -->
+                    <div class="route-details-card">
+                        <div class="route-card-header">
+                            <svg class="route-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span class="route-time-text" id="route-est-time">예상 시간: 계산 중...</span>
+                        </div>
+                        <div class="route-guidance" id="route-instructions">
+                            <!-- Text directions will populate here dynamically -->
+                        </div>
+                        <div class="route-safety-alert" id="route-safety-alert">
+                            <!-- Danger alert warning if applicable -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Safety Guidelines and Emergency Contact Callout -->
+                <div class="emergency-callouts">
+                    <h3 class="callout-title">긴급 재난 신고 및 상황실</h3>
+                    <div class="call-buttons-grid">
+                        <a href="tel:119" class="call-btn btn-119" id="call-119">
+                            <span class="call-icon">🔥</span>
+                            <span class="call-name">소방재난본부</span>
+                            <span class="call-number">119</span>
+                        </a>
+                        <a href="tel:112" class="call-btn btn-112" id="call-112">
+                            <span class="call-icon">🚓</span>
+                            <span class="call-name">경찰청 상황실</span>
+                            <span class="call-number">112</span>
+                        </a>
+                        <a href="tel:120" class="call-btn btn-120" id="call-120">
+                            <span class="call-icon">📞</span>
+                            <span class="call-name">재난안전대책본부</span>
+                            <span class="call-number">120</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="footer-actions">
+                    <button id="btn-restart-all" class="btn-restart-large">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                            <polyline points="16 3 21 8 16 13"></polyline>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                            <polyline points="8 21 3 16 8 11"></polyline>
+                        </svg>
+                        상황 다시 입력하고 대피소 찾기
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Core App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
